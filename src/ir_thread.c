@@ -8,12 +8,17 @@
 #include "ir_protocol.h"
 #include "ir_thread.h"
 
-#define IR_REMOTE_THREAD_STACK_SIZE 1024
-#define IR_REMOTE_THREAD_PRIORITY 5
+#define IR_REMOTE_MESSAGE_QUEUE_SIZE  10
+#define IR_REMOTE_THREAD_STACK_SIZE   1024
+#define IR_REMOTE_THREAD_PRIORITY     5
 
 static const struct pwm_dt_spec pwm_ir = PWM_DT_SPEC_GET(DT_ALIAS(pwm_ir));
 
-K_MSGQ_DEFINE(my_msgq, sizeof(benq_key_t), 10, 4);
+K_MSGQ_DEFINE(my_msgq, sizeof(benq_key_t), IR_REMOTE_MESSAGE_QUEUE_SIZE, 4);
+K_THREAD_STACK_DEFINE(my_stack_area, IR_REMOTE_THREAD_STACK_SIZE);
+
+static struct k_thread ir_thread_data;
+static k_tid_t ir_remote_id;
 
 static uint32_t benq_keys[] = { 0, 0 };
 static void prepare_keys(void);
@@ -23,26 +28,16 @@ static inline int benq_send_power_off(void);
 
 static void ir_thread(void *a, void *b, void *c);
 
-K_THREAD_DEFINE(ir_remote_id,
-  IR_REMOTE_THREAD_STACK_SIZE, ir_thread, NULL, NULL, NULL,
-  IR_REMOTE_THREAD_PRIORITY, 0, 0);
-
-int ir_thread_push(benq_key_t key) {
-  return k_msgq_put(&my_msgq, &key, K_NO_WAIT);
-}
-
-static void ir_thread(void *a, void *b, void *c) {
+int ir_thread_init(void) {
   int ret;
 
   if (!device_is_ready(pwm_ir.dev)) {
     printk("Error: PWM device %s is not ready\n",
            pwm_ir.dev->name);
-    return;
+    return -ENODEV;
   }
 
   prepare_keys();
-
-  printk("Start\n");
 
   ret = ir_remote_init((ir_remote_t) {
     .pwm              = &pwm_ir,
@@ -55,9 +50,22 @@ static void ir_thread(void *a, void *b, void *c) {
     .zero_mark_time   = K_NSEC(562500),
     .zero_space_time  = K_NSEC(562500),
   });
-  if (ret) {
-    printk("Init error: %d\n", ret);
-  }
+
+  ir_remote_id = k_thread_create(&ir_thread_data, my_stack_area,
+                                 K_THREAD_STACK_SIZEOF(my_stack_area),
+                                 ir_thread,
+                                 NULL, NULL, NULL,
+                                 IR_REMOTE_THREAD_PRIORITY, 0, K_NO_WAIT);
+
+  return ret;
+}
+
+int ir_thread_push(benq_key_t key) {
+  return k_msgq_put(&my_msgq, &key, K_NO_WAIT);
+}
+
+static void ir_thread(void *a, void *b, void *c) {
+  int ret;
 
   int attempt = 0;
   while (1) {

@@ -8,6 +8,7 @@ typedef enum {
   BENQ_KEY_POWER_ON,
 } benq_key_t;
 
+int ir_thread_init(void);
 int ir_thread_push(benq_key_t key);
 
 #endif /* IR_THREAD_H__ */
