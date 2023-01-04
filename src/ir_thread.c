@@ -18,6 +18,7 @@ static const struct pwm_dt_spec pwm_ir = PWM_DT_SPEC_GET(DT_ALIAS(pwm_ir));
 K_MSGQ_DEFINE(my_msgq, sizeof(ir_command_t), IR_REMOTE_MESSAGE_QUEUE_SIZE, 4);
 K_THREAD_STACK_DEFINE(my_stack_area, IR_REMOTE_THREAD_STACK_SIZE);
 
+static ir_protocol_t ir_protocol;
 static struct k_thread ir_thread_data;
 static k_tid_t ir_remote_id;
 
@@ -32,7 +33,10 @@ int ir_thread_init(void) {
     return -ENODEV;
   }
 
-  // TODO: init protocol here
+  ir_protocol = (ir_protocol_t) {
+    .type = IR_PROTOCOL_TYPE_NEC,
+    .info = { .nec = { .address_size = 16 } },
+  };
 
   ret = ir_remote_init((ir_remote_t) {
     .pwm              = &pwm_ir,
@@ -61,10 +65,11 @@ int ir_thread_push(ir_command_t cmd) {
 
 static void ir_thread(void *a, void *b, void *c) {
   int ret;
+  ir_command_t command;
+  uint32_t payload;
 
   while (1) {
     // pop from queue
-    ir_command_t command;
     ret = k_msgq_get(&my_msgq, &command, K_FOREVER);
     if (ret) {
       printk("Error: %d\n", ret);
@@ -72,24 +77,24 @@ static void ir_thread(void *a, void *b, void *c) {
     }
 
     // prepare payload
-    ir_protocol_t protocol = {
-      .type = IR_PROTOCOL_TYPE_NEC,
-      .info = { .nec = { .address_size = 16 } },
-    };
-    uint32_t payload = 0;
-    ir_protocol_build(&protocol, command, &payload);
-
-    ret = ir_remote_send(payload);
-
+    ret = ir_protocol_build(&ir_protocol, command, &payload);
     if (ret) {
-      if (ir_remote_busy()) {
-        printk("Error: busy\n");
-      }
-      if (ir_remote_last_error()) {
-        printk("Last error: %d\n", ir_remote_last_error());
-      }
+      printk("Cannot build command, reason: %d\n", ret);
+      continue;
     }
 
-    k_msleep(100U);
+    // send payload
+    ret = ir_remote_send(payload);
+    if (ret) {
+      printk("Cannot send command, reason: %d\n", ret);
+      continue;
+    }
+
+    k_msleep(100U); // 100ms delay between commands in NEC protocol
+
+    if (ir_remote_last_error_get()) {
+      printk("Cannot transfer command, reason: %d\n", ir_remote_last_error_get());
+      ir_remote_last_error_clear();
+    }
   }
 }

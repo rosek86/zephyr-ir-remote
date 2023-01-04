@@ -22,6 +22,7 @@ typedef struct {
 int ir_remote_init(ir_remote_t init);
 int ir_remote_send(uint32_t payload);
 bool ir_remote_busy(void);
-int ir_remote_last_error(void);
+int ir_remote_last_error_get(void);
+void ir_remote_last_error_clear(void);
 
 #endif // IR_REMOTE_H__

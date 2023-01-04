@@ -94,8 +94,12 @@ bool ir_remote_busy(void) {
   return state.busy;
 }
 
-int ir_remote_last_error(void) {
+int ir_remote_last_error_get(void) {
   return state.last_error;
+}
+
+void ir_remote_last_error_clear(void) {
+  state.last_error = 0;
 }
 
 static void frame_start_handler(struct k_timer *timer_id) {
