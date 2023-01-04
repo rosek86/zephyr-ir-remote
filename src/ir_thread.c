@@ -4,6 +4,7 @@
 #include <zephyr/device.h>
 #include <zephyr/drivers/pwm.h>
 
+#include "ir_command.h"
 #include "ir_remote.h"
 #include "ir_protocol.h"
 #include "ir_thread.h"
@@ -14,17 +15,11 @@
 
 static const struct pwm_dt_spec pwm_ir = PWM_DT_SPEC_GET(DT_ALIAS(pwm_ir));
 
-K_MSGQ_DEFINE(my_msgq, sizeof(benq_key_t), IR_REMOTE_MESSAGE_QUEUE_SIZE, 4);
+K_MSGQ_DEFINE(my_msgq, sizeof(ir_command_t), IR_REMOTE_MESSAGE_QUEUE_SIZE, 4);
 K_THREAD_STACK_DEFINE(my_stack_area, IR_REMOTE_THREAD_STACK_SIZE);
 
 static struct k_thread ir_thread_data;
 static k_tid_t ir_remote_id;
-
-static uint32_t benq_keys[] = { 0, 0 };
-static void prepare_keys(void);
-
-static inline int benq_send_power_on(void);
-static inline int benq_send_power_off(void);
 
 static void ir_thread(void *a, void *b, void *c);
 
@@ -37,7 +32,7 @@ int ir_thread_init(void) {
     return -ENODEV;
   }
 
-  prepare_keys();
+  // TODO: init protocol here
 
   ret = ir_remote_init((ir_remote_t) {
     .pwm              = &pwm_ir,
@@ -60,36 +55,31 @@ int ir_thread_init(void) {
   return ret;
 }
 
-int ir_thread_push(benq_key_t key) {
-  return k_msgq_put(&my_msgq, &key, K_NO_WAIT);
+int ir_thread_push(ir_command_t cmd) {
+  return k_msgq_put(&my_msgq, &cmd, K_NO_WAIT);
 }
 
 static void ir_thread(void *a, void *b, void *c) {
   int ret;
 
-  int attempt = 0;
   while (1) {
     // pop from queue
-
-    benq_key_t payload;
-    ret = k_msgq_get(&my_msgq, &payload, K_FOREVER);
+    ir_command_t command;
+    ret = k_msgq_get(&my_msgq, &command, K_FOREVER);
     if (ret) {
       printk("Error: %d\n", ret);
       continue;
     }
 
-    printk("Attempt %d\n", ++attempt);
+    // prepare payload
+    ir_protocol_t protocol = {
+      .type = IR_PROTOCOL_TYPE_NEC,
+      .info = { .nec = { .address_size = 16 } },
+    };
+    uint32_t payload = 0;
+    ir_protocol_build(&protocol, command, &payload);
 
-    switch (payload) {
-      case BENQ_KEY_POWER_OFF:
-        ret = benq_send_power_off();
-        break;
-      case BENQ_KEY_POWER_ON:
-        ret = benq_send_power_on();
-        break;
-      default:
-        printk("Unknown payload: %d\n", payload);
-    }
+    ret = ir_remote_send(payload);
 
     if (ret) {
       if (ir_remote_busy()) {
@@ -102,37 +92,4 @@ static void ir_thread(void *a, void *b, void *c) {
 
     k_msleep(100U);
   }
-}
-
-static void prepare_keys(void) {
-  const uint16_t address = 0x3000;
-
-  uint32_t ir_payload;
-
-  ir_protocol_t ir_protocol = {
-    .type = IR_PROTOCOL_TYPE_NEC,
-    .info = { .nec = { .address_size = 16 } },
-  };
-
-  // power off
-  ir_protocol_build(&ir_protocol, (ir_command_t) {
-    .address = address,
-    .command = 0x4E,
-  }, &ir_payload);
-  benq_keys[BENQ_KEY_POWER_OFF] = ir_payload;
-
-  // power on
-  ir_protocol_build(&ir_protocol, (ir_command_t) {
-    .address = address,
-    .command = 0x4F,
-  }, &ir_payload);
-  benq_keys[BENQ_KEY_POWER_ON] = ir_payload;
-}
-
-static inline int benq_send_power_on(void) {
-  return ir_remote_send(benq_keys[BENQ_KEY_POWER_ON]);
-}
-
-static inline int benq_send_power_off(void) {
-  return ir_remote_send(benq_keys[BENQ_KEY_POWER_OFF]);
 }

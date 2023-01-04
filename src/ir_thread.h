@@ -3,12 +3,9 @@
 
 #include <stdint.h>
 
-typedef enum {
-  BENQ_KEY_POWER_OFF,
-  BENQ_KEY_POWER_ON,
-} benq_key_t;
+#include "ir_command.h"
 
 int ir_thread_init(void);
-int ir_thread_push(benq_key_t key);
+int ir_thread_push(ir_command_t cmd);
 
 #endif /* IR_THREAD_H__ */
