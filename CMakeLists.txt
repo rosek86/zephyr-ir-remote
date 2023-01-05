@@ -9,4 +9,6 @@ target_sources(app PRIVATE
   src/ir_remote.c
   src/ir_protocol.c
   src/ir_thread.c
+  src/screen_thread.c
+  src/projector_thread.c
 )
