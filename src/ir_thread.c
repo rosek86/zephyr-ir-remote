@@ -20,7 +20,7 @@ K_THREAD_STACK_DEFINE(my_stack_area, IR_REMOTE_THREAD_STACK_SIZE);
 
 static ir_protocol_t ir_protocol;
 static struct k_thread ir_thread_data;
-static k_tid_t ir_remote_id;
+static k_tid_t ir_thread_id;
 
 static void ir_thread(void *a, void *b, void *c);
 
@@ -50,7 +50,7 @@ int ir_thread_init(void) {
     .zero_space_time  = K_NSEC(562500),
   });
 
-  ir_remote_id = k_thread_create(&ir_thread_data, my_stack_area,
+  ir_thread_id = k_thread_create(&ir_thread_data, my_stack_area,
                                  K_THREAD_STACK_SIZEOF(my_stack_area),
                                  ir_thread,
                                  NULL, NULL, NULL,
@@ -72,7 +72,7 @@ static void ir_thread(void *a, void *b, void *c) {
     // pop from queue
     ret = k_msgq_get(&my_msgq, &command, K_FOREVER);
     if (ret) {
-      printk("Error: %d\n", ret);
+      printk("Cannot pop from queue, reason: %d\n", ret);
       continue;
     }
 
