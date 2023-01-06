@@ -50,11 +50,12 @@ int ir_thread_init(void) {
     .zero_space_time  = K_NSEC(562500),
   });
 
-  ir_thread_id = k_thread_create(&ir_thread_data, my_stack_area,
-                                 K_THREAD_STACK_SIZEOF(my_stack_area),
-                                 ir_thread,
-                                 NULL, NULL, NULL,
-                                 IR_REMOTE_THREAD_PRIORITY, 0, K_NO_WAIT);
+  ir_thread_id = k_thread_create(
+    &ir_thread_data, my_stack_area,
+    K_THREAD_STACK_SIZEOF(my_stack_area),
+    ir_thread, NULL, NULL, NULL,
+    IR_REMOTE_THREAD_PRIORITY, 0, K_NO_WAIT
+  );
 
   return ret;
 }

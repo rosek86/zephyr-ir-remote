@@ -22,10 +22,10 @@ void main(void)
 
   while (1) {
     projector_power_on();
-    projector_power_off();
+    // projector_power_off();
 
-    screen_down();
-    screen_up();
+    // screen_down();
+    // screen_up();
 
     k_sleep(K_SECONDS(2U));
   }
