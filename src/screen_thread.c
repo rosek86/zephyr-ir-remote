@@ -49,10 +49,10 @@ static int init_gpio(void) {
   int ret;
 
   // Configure screen GPIOs
-  ret = gpio_pin_configure_dt(&screen_gpios.down, GPIO_OUTPUT_ACTIVE);
+  ret = gpio_pin_configure_dt(&screen_gpios.down, GPIO_INPUT | GPIO_PULL_UP);
   if (ret != 0) { return ret; }
 
-  ret = gpio_pin_configure_dt(&screen_gpios.up, GPIO_OUTPUT_ACTIVE);
+  ret = gpio_pin_configure_dt(&screen_gpios.up, GPIO_INPUT | GPIO_PULL_UP);
   if (ret != 0) { return ret; }
 
   return 0;
@@ -72,13 +72,19 @@ static int down(void);
 static int up(void);
 
 static void thread(void *a, void *b, void *c) {
+  int ret = 0;
+
   while (1) {
     uint32_t cmd;
     k_msgq_get(&msgq, &cmd, K_FOREVER);
 
     switch (cmd) {
-      case SCREEN_CMD_DOWN: down(); break;
-      case SCREEN_CMD_UP:   up();   break;
+      case SCREEN_CMD_DOWN: ret = down(); break;
+      case SCREEN_CMD_UP:   ret = up();   break;
+    }
+
+    if (ret != 0) {
+      printk("Error: screen thread failed with %d\n", ret);
     }
   }
 }
@@ -86,15 +92,14 @@ static void thread(void *a, void *b, void *c) {
 static int down(void) {
   int ret;
 
-  if ((ret = gpio_pin_set_dt(&screen_gpios.down, 0)) != 0) {
-    return ret;
-  }
+  ret = gpio_pin_configure_dt(&screen_gpios.down, GPIO_OUTPUT_LOW);
+  if (ret != 0) { return ret; }
 
   k_sleep(K_MSEC(100));
 
-  if ((ret = gpio_pin_set_dt(&screen_gpios.down, 1)) != 0) {
-    return ret;
-  }
+  ret = gpio_pin_configure_dt(&screen_gpios.down, GPIO_INPUT | GPIO_PULL_UP);
+  if (ret != 0) { return ret; }
+
 
   return 0;
 }
@@ -102,15 +107,14 @@ static int down(void) {
 static int up(void) {
   int ret;
 
-  if ((ret = gpio_pin_set_dt(&screen_gpios.up, 0)) != 0) {
-    return ret;
-  }
+  ret = gpio_pin_configure_dt(&screen_gpios.up, GPIO_OUTPUT_LOW);
+  if (ret != 0) { return ret; }
 
   k_sleep(K_MSEC(100));
 
-  if ((ret = gpio_pin_set_dt(&screen_gpios.up, 1)) != 0) {
-    return ret;
-  }
+  ret = gpio_pin_configure_dt(&screen_gpios.up, GPIO_INPUT | GPIO_PULL_UP);
+  if (ret != 0) { return ret; }
+
 
   return 0;
 }
