@@ -3,6 +3,7 @@
 
 #include "ir_command.h"
 #include "ir_thread.h"
+#include "utils.h"
 
 #define PROJECTOR_MESSAGE_QUEUE_SIZE  10
 #define PROJECTOR_THREAD_STACK_SIZE   1024
@@ -18,7 +19,7 @@ static ir_command_t benq_keys[] = {
   IR_COMMAND_BUILD(0x3000, 0x4F), // Power on
 };
 
-K_MSGQ_DEFINE(projector_msgq, sizeof(uint32_t), PROJECTOR_MESSAGE_QUEUE_SIZE, 4);
+K_MSGQ_DEFINE_STATIC(msgq, sizeof(uint32_t), PROJECTOR_MESSAGE_QUEUE_SIZE, 4);
 static K_THREAD_STACK_DEFINE(thread_stack, PROJECTOR_THREAD_STACK_SIZE);
 static struct k_thread thread_data;
 static k_tid_t thread_id;
@@ -43,12 +44,12 @@ int projector_init(void) {
 
 int projector_power_on(void) {
   uint32_t cmd = BENQ_KEY_POWER_ON;
-  return k_msgq_put(&projector_msgq, &cmd, K_NO_WAIT);
+  return k_msgq_put(&msgq, &cmd, K_NO_WAIT);
 }
 
 int projector_power_off(void) {
   uint32_t cmd = BENQ_KEY_POWER_OFF;
-  return k_msgq_put(&projector_msgq, &cmd, K_NO_WAIT);
+  return k_msgq_put(&msgq, &cmd, K_NO_WAIT);
 }
 
 static int power_off(void);
@@ -57,15 +58,11 @@ static int power_on(void);
 static void thread(void *a, void *b, void *c) {
   while (1) {
     uint32_t cmd;
-    k_msgq_get(&projector_msgq, &cmd, K_FOREVER);
+    k_msgq_get(&msgq, &cmd, K_FOREVER);
 
     switch (cmd) {
-      case BENQ_KEY_POWER_ON:
-        power_on();
-        break;
-      case BENQ_KEY_POWER_OFF:
-        power_off();
-        break;
+      case BENQ_KEY_POWER_ON:  power_on();  break;
+      case BENQ_KEY_POWER_OFF: power_off(); break;
     }
   }
 }

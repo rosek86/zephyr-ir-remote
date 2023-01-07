@@ -2,6 +2,7 @@
 #include <zephyr/drivers/gpio.h>
 
 #include "screen_thread.h"
+#include "utils.h"
 
 #define SCREEN_MESSAGE_QUEUE_SIZE  10
 #define SCREEN_THREAD_STACK_SIZE   1024
@@ -20,7 +21,7 @@ const struct screen_gpios {
   .up   = GPIO_DT_SPEC_GET(DT_PATH(zephyr_user), screen_up_gpios),
 };
 
-K_MSGQ_DEFINE(screen_msgq, sizeof(uint32_t), SCREEN_MESSAGE_QUEUE_SIZE, 4);
+K_MSGQ_DEFINE_STATIC(msgq, sizeof(uint32_t), SCREEN_MESSAGE_QUEUE_SIZE, 4);
 static K_THREAD_STACK_DEFINE(thread_stack, SCREEN_THREAD_STACK_SIZE);
 static struct k_thread thread_data;
 static k_tid_t thread_id;
@@ -59,12 +60,12 @@ static int init_gpio(void) {
 
 int screen_down(void) {
   uint32_t cmd = SCREEN_CMD_DOWN;
-  return k_msgq_put(&screen_msgq, &cmd, K_NO_WAIT);
+  return k_msgq_put(&msgq, &cmd, K_NO_WAIT);
 }
 
 int screen_up(void) {
   uint32_t cmd = SCREEN_CMD_UP;
-  return k_msgq_put(&screen_msgq, &cmd, K_NO_WAIT);
+  return k_msgq_put(&msgq, &cmd, K_NO_WAIT);
 }
 
 static int down(void);
@@ -73,15 +74,11 @@ static int up(void);
 static void thread(void *a, void *b, void *c) {
   while (1) {
     uint32_t cmd;
-    k_msgq_get(&screen_msgq, &cmd, K_FOREVER);
+    k_msgq_get(&msgq, &cmd, K_FOREVER);
 
     switch (cmd) {
-      case SCREEN_CMD_DOWN:
-        down();
-        break;
-      case SCREEN_CMD_UP:
-        up();
-        break;
+      case SCREEN_CMD_DOWN: down(); break;
+      case SCREEN_CMD_UP:   up();   break;
     }
   }
 }
